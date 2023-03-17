@@ -8,7 +8,14 @@ from re import sub
 from sys import setrecursionlimit
 from urllib import parse
 
-from pylast import LastFMNetwork, MalformedResponseError, User, WSError, md5
+from pylast import (
+    LastFMNetwork,
+    MalformedResponseError,
+    NetworkError,
+    User,
+    WSError,
+    md5,
+)
 from telethon.errors import AboutTooLongError
 from telethon.errors.rpcerrorlist import FloodWaitError
 from telethon.tl.functions.account import UpdateProfileRequest
@@ -30,6 +37,8 @@ LASTFM_API = Config.LASTFM_API
 LASTFM_SECRET = Config.LASTFM_SECRET
 LASTFM_USERNAME = Config.LASTFM_USERNAME
 LASTFM_PASS = md5(Config.LASTFM_PASSWORD)
+FEATURING_REGEX = "((([Ff][Ee]?[Aa]?[Tt]\\.)|([Ff][Ee][Aa][Tt][Uu][Rr][Ii][Nn][Gg])).*)"
+POLLING_TIME = 6
 
 if LASTFM_API and LASTFM_SECRET and LASTFM_USERNAME and LASTFM_PASS:
     lastfm = LastFMNetwork(
@@ -40,6 +49,9 @@ if LASTFM_API and LASTFM_SECRET and LASTFM_USERNAME and LASTFM_PASS:
     )
 else:
     lastfm = None
+
+if DEFAULT_BIO is None:
+    DEFAULT_BIO = ""
 
 # =================== CONSTANT ===================
 LFM_BIO_ENABLED = "```last.fm current music to bio is now enabled.```"
@@ -101,8 +113,8 @@ async def get_curr_track(lfmbio):  # sourcery no-metrics
             user_info = (await catub(GetFullUserRequest(LASTFM_.USER_ID))).full_user
             LASTFM_.RUNNING = True
             playing = User(LASTFM_USERNAME, lastfm).get_now_playing()
-            LASTFM_.SONG = playing.get_title()
-            LASTFM_.ARTIST = playing.get_artist()
+            LASTFM_.SONG = str(playing.get_title()).strip()
+            LASTFM_.ARTIST = str(playing.get_artist()).strip()
             oldsong = environ.get("oldsong", None)
             oldartist = environ.get("oldartist", None)
             if (
@@ -119,42 +131,76 @@ async def get_curr_track(lfmbio):  # sourcery no-metrics
                 try:
                     if BOTLOG and LASTFM_.LastLog:
                         await catub.send_message(
-                            BOTLOG_CHATID, f"Attempted to change bio to\n{lfmbio}"
+                            BOTLOG_CHATID, f"Attempted to change bio to\n`{lfmbio}`"
                         )
                     await catub(UpdateProfileRequest(about=lfmbio))
                 except AboutTooLongError:
-                    short_bio = f"🎧: {LASTFM_.SONG}"
-                    await catub(UpdateProfileRequest(about=short_bio))
+                    # If AboutTooLongError first step is to remove information inside [] and ()
+                    try:
+                        LASTFM_.SONG = sub(r"\[.*\]", "", LASTFM_.SONG).strip()
+                        LASTFM_.SONG = sub(r"\(.*\)", "", LASTFM_.SONG).strip()
+                        lfmbio = f"🎧: {LASTFM_.ARTIST} - {LASTFM_.SONG}"
+                        if BOTLOG and LASTFM_.LastLog:
+                            await catub.send_message(
+                                BOTLOG_CHATID, f"Attempted to change bio to\n`{lfmbio}`"
+                            )
+                        await catub(UpdateProfileRequest(about=lfmbio))
+                    except AboutTooLongError:
+                        # If AboutTooLongError persist we remove "Featuring" information from title and song name
+                        try:
+                            LASTFM_.ARTIST = sub(
+                                FEATURING_REGEX, "", LASTFM_.ARTIST
+                            ).strip()
+                            LASTFM_.SONG = sub(
+                                FEATURING_REGEX, "", LASTFM_.SONG
+                            ).strip()
+                            lfmbio = f"🎧: {LASTFM_.ARTIST} - {LASTFM_.SONG}"
+                            if BOTLOG and LASTFM_.LastLog:
+                                await catub.send_message(
+                                    BOTLOG_CHATID,
+                                    f"Attempted to change bio to\n`{lfmbio}`",
+                                )
+                            await catub(UpdateProfileRequest(about=lfmbio))
+                        except AboutTooLongError:
+                            # If AboutTooLongError still persist we try to set song name as bio
+                            short_bio = f"🎧: {LASTFM_.SONG}"
+                            if BOTLOG and LASTFM_.LastLog:
+                                await catub.send_message(
+                                    BOTLOG_CHATID,
+                                    f"Attempted to change bio to\n`{short_bio}`",
+                                )
+                            await catub(UpdateProfileRequest(about=short_bio))
             if playing is None and user_info.about != DEFAULT_BIO:
-                await sleep(6)
+                await sleep(POLLING_TIME)
                 await catub(UpdateProfileRequest(about=DEFAULT_BIO))
                 if BOTLOG and LASTFM_.LastLog:
                     await catub.send_message(
-                        BOTLOG_CHATID, f"Reset bio back to\n{DEFAULT_BIO}"
+                        BOTLOG_CHATID, f"Reset bio back to\n`{DEFAULT_BIO}`"
                     )
         except AttributeError:
             try:
                 if user_info.about != DEFAULT_BIO:
-                    await sleep(6)
+                    await sleep(POLLING_TIME)
                     await catub(UpdateProfileRequest(about=DEFAULT_BIO))
                     if BOTLOG and LASTFM_.LastLog:
                         await catub.send_message(
-                            BOTLOG_CHATID, f"Reset bio back to\n{DEFAULT_BIO}"
+                            BOTLOG_CHATID, f"Reset bio back to\n`{DEFAULT_BIO}`"
                         )
             except FloodWaitError as err:
                 if BOTLOG and LASTFM_.LastLog:
                     await catub.send_message(
-                        BOTLOG_CHATID, f"Error changing bio:\n{err}"
+                        BOTLOG_CHATID, f"Error changing bio:\n`{err}`"
                     )
         except (
             FloodWaitError,
+            NetworkError,
             WSError,
             MalformedResponseError,
             AboutTooLongError,
         ) as err:
             if BOTLOG and LASTFM_.LastLog:
-                await catub.send_message(BOTLOG_CHATID, f"Error changing bio:\n{err}")
-        await sleep(2)
+                await catub.send_message(BOTLOG_CHATID, f"Error changing bio:\n`{err}`")
+        await sleep(POLLING_TIME)
     LASTFM_.RUNNING = False
 
 
