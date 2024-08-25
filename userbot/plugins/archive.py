@@ -21,9 +21,7 @@ from telethon import types
 from telethon.utils import get_extension
 
 from ..Config import Config
-from ..helpers.utils import _catutils
 from . import catub, edit_delete, edit_or_reply, progress
-from .upload import UPLOAD_, upload
 
 thumb_image_path = os.path.join(Config.TMP_DOWNLOAD_DIRECTORY, "thumb_image.jpg")
 plugin_category = "misc"
@@ -36,13 +34,6 @@ def zipdir(dirName):
             filePath = os.path.join(root, filename)
             filePaths.append(filePath)
     return filePaths
-
-
-async def upload_unpacked(event, text_event, path):
-    await edit_or_reply(text_event, "`Uploading file .....`")
-    UPLOAD_.uploaded = 0
-    await upload(path, event, text_event)
-    await _catutils.runcmd(f"rm -rf {path}")
 
 
 @catub.cat_cmd(
@@ -126,22 +117,15 @@ async def tar_file(event):
     info={
         "header": "To unpack the given zip file",
         "description": "Reply to a zip file or provide zip file path with command to unzip the given file",
-        "flags": {"u": "Upload files after unpacking."},
         "usage": [
             "{tr}unzip <reply/file path>",
-            "{tr}unzip -u <reply/file path>",
         ],
     },
 )
 async def unzip_file(event):  # sourcery no-metrics
     # sourcery skip: low-code-quality
     "To unpack the zip file"
-    upload_flag = False
-    input_str = event.pattern_match.group(1)
-    if input_str and "-u" in input_str:
-        upload_flag = True
-        input_str = input_str.replace("-u", "").strip()
-    if input_str:
+    if input_str := event.pattern_match.group(1):
         path = Path(input_str)
         if os.path.exists(path):
             start = datetime.now()
@@ -157,12 +141,7 @@ async def unzip_file(event):  # sourcery no-metrics
                 zip_ref.extractall(destination)
             end = datetime.now()
             ms = (end - start).seconds
-            await edit_or_reply(
-                mone,
-                f"unzipped and stored to `{destination}` \n**Time Taken :** `{ms} seconds`",
-            )
-            if upload_flag:
-                await upload_unpacked(event, mone, destination)
+            await mone.edit(f"unzipped and stored to `{destination}` \n**Time Taken :** `{ms} seconds`")
         else:
             await edit_delete(event, f"I can't find that path `{input_str}`", 10)
     elif event.reply_to_msg_id:
@@ -190,7 +169,7 @@ async def unzip_file(event):  # sourcery no-metrics
             dl.close()
         except Exception as e:
             return await edit_delete(mone, f"**Error:**\n__{e}__")
-        await edit_or_reply(mone, "`Download finished Unpacking now`")
+        await mone.edit("`Download finished Unpacking now`")
         destination = os.path.join(
             Config.TMP_DOWNLOAD_DIRECTORY,
             os.path.splitext(os.path.basename(filename))[0],
@@ -199,16 +178,11 @@ async def unzip_file(event):  # sourcery no-metrics
             zip_ref.extractall(destination)
         end = datetime.now()
         ms = (end - start).seconds
-        await edit_or_reply(
-            mone,
-            f"unzipped and stored to `{destination}` \n**Time Taken :** `{ms} seconds`",
-        )
+        await mone.edit(f"unzipped and stored to `{destination}` \n**Time Taken :** `{ms} seconds`")
         os.remove(filename)
-        if upload_flag:
-            await upload_unpacked(event, mone, destination)
     else:
         await edit_delete(
-            event,
+            mone,
             "`Either reply to the zipfile or provide path of zip file along with command`",
         )
 
@@ -219,22 +193,15 @@ async def unzip_file(event):  # sourcery no-metrics
     info={
         "header": "To unpack the given tar file",
         "description": "Reply to a tar file or provide tar file path with command to unpack the given tar file",
-        "flags": {"u": "Upload files after unpacking."},
         "usage": [
             "{tr}untar <reply/file path>",
-            "{tr}untar -u <reply/file path>",
         ],
     },
 )
 async def untar_file(event):  # sourcery no-metrics
     # sourcery skip: low-code-quality
     "To unpack the tar file"
-    upload_flag = False
-    input_str = event.pattern_match.group(1)
-    if input_str and "-u" in input_str:
-        upload_flag = True
-        input_str = input_str.replace("-u", "").strip()
-    if input_str:
+    if input_str := event.pattern_match.group(1):
         path = Path(input_str)
         if os.path.exists(path):
             start = datetime.now()
@@ -255,8 +222,6 @@ async def untar_file(event):  # sourcery no-metrics
                 f"**Time Taken :** `{ms} seconds`\
                 \nUnpacked the input path `{input_str}` and stored to `{destination}`"
             )
-            if upload_flag:
-                await upload_unpacked(event, mone, destination)
         else:
             await edit_delete(event, f"I can't find that path `{input_str}`", 10)
     elif event.reply_to_msg_id:
@@ -296,10 +261,8 @@ async def untar_file(event):  # sourcery no-metrics
                 \nUnpacked the replied file and stored to `{destination}`"
         )
         os.remove(filename)
-        if upload_flag:
-            await upload_unpacked(event, mone, destination)
     else:
         await edit_delete(
-            event,
+            mone,
             "`Either reply to the tarfile or provide path of tarfile along with command`",
         )

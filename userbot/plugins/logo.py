@@ -400,11 +400,7 @@ async def cat(event):
             await edit_delete(event, f"📑 Value of **{var}** is  `{var_data}`", time=60)
         elif cmd == "d":
             delgvar(var)
-            await edit_delete(
-                event,
-                f"📑 Value of **{var}** is now deleted & set to default.",
-                time=60,
-            )
+            await edit_delete(event, f"📑 Value of **{var}** is now deleted & set to default.", time=60)
     elif not input_str and cmd == "r":
         delgvar("LOGO_BACKGROUND")
         delgvar("LOGO_FONT_COLOR")
