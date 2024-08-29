@@ -98,7 +98,7 @@ async def cpu(event):
 
 
 @catub.cat_cmd(
-    pattern=r"sysd$",
+    pattern=r"(neofetch|sysd)$",
     command=("sysd", plugin_category),
     info={
         "header": "Shows system information using neofetch",
