@@ -8,10 +8,8 @@
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 
 import threading
-from contextlib import contextmanager
 
 from sqlalchemy import Column, Integer, String
-from sqlalchemy.exc import SQLAlchemyError
 
 from . import BASE, SESSION
 
@@ -47,51 +45,39 @@ class ANTIFLOOD_SQL:
 ANTIFLOOD_SQL_ = ANTIFLOOD_SQL()
 
 
-@contextmanager
-def session_scope():
-    """Provide a transactional scope around a series of operations."""
-    session = SESSION()
-    try:
-        yield session
-        session.commit()
-    except SQLAlchemyError as e:
-        session.rollback()
-        raise e
-    finally:
-        session.close()
-
-
 def set_flood(chat_id, amount):
-    with INSERTION_LOCK, session_scope() as session:
-        flood = session.query(FloodControl).get(str(chat_id)) or FloodControl(str(chat_id))
+    with INSERTION_LOCK:
+        flood = SESSION.query(FloodControl).get(str(chat_id))
+        if not flood:
+            flood = FloodControl(str(chat_id))
 
         flood.user_id = None
         flood.limit = amount
 
         ANTIFLOOD_SQL_.CHAT_FLOOD[str(chat_id)] = (None, DEF_COUNT, amount)
 
-        session.add(flood)
+        SESSION.add(flood)
+        SESSION.commit()
 
 
 def update_flood(chat_id: str, user_id) -> bool:
-    with INSERTION_LOCK:
-        if chat_id not in ANTIFLOOD_SQL_.CHAT_FLOOD:
-            return False
-        curr_user_id, count, limit = ANTIFLOOD_SQL_.CHAT_FLOOD.get(chat_id, DEF_OBJ)
-        if limit == 0:  # no antiflood
-            return False
-        if user_id != curr_user_id or user_id is None:  # other user
-            ANTIFLOOD_SQL_.CHAT_FLOOD[chat_id] = (user_id, DEF_COUNT + 1, limit)
-            return False
-
-        count += 1
-        if count > limit:  # too many msgs, kick
-            ANTIFLOOD_SQL_.CHAT_FLOOD[chat_id] = (None, DEF_COUNT, limit)
-            return True
-
-        # default -> update
-        ANTIFLOOD_SQL_.CHAT_FLOOD[chat_id] = (user_id, count, limit)
+    if chat_id not in ANTIFLOOD_SQL_.CHAT_FLOOD:
+        return
+    curr_user_id, count, limit = ANTIFLOOD_SQL_.CHAT_FLOOD.get(chat_id, DEF_OBJ)
+    if limit == 0:  # no antiflood
         return False
+    if user_id != curr_user_id or user_id is None:  # other user
+        ANTIFLOOD_SQL_.CHAT_FLOOD[chat_id] = (user_id, DEF_COUNT + 1, limit)
+        return False
+
+    count += 1
+    if count > limit:  # too many msgs, kick
+        ANTIFLOOD_SQL_.CHAT_FLOOD[chat_id] = (None, DEF_COUNT, limit)
+        return True
+
+    # default -> update
+    ANTIFLOOD_SQL_.CHAT_FLOOD[chat_id] = (user_id, count, limit)
+    return False
 
 
 def get_flood_limit(chat_id):
@@ -99,14 +85,19 @@ def get_flood_limit(chat_id):
 
 
 def migrate_chat(old_chat_id, new_chat_id):
-    with INSERTION_LOCK, session_scope() as session:
-        if flood := session.query(FloodControl).get(str(old_chat_id)):
+    with INSERTION_LOCK:
+        if flood := SESSION.query(FloodControl).get(str(old_chat_id)):
             ANTIFLOOD_SQL_.CHAT_FLOOD[str(new_chat_id)] = ANTIFLOOD_SQL_.CHAT_FLOOD.get(str(old_chat_id), DEF_OBJ)
             flood.chat_id = str(new_chat_id)
+            SESSION.commit()
+
+        SESSION.close()
 
 
 def __load_flood_settings():
-    with session_scope() as session:
-        all_chats = session.query(FloodControl).all()
+    try:
+        all_chats = SESSION.query(FloodControl).all()
         ANTIFLOOD_SQL_.CHAT_FLOOD = {chat.chat_id: (None, DEF_COUNT, chat.limit) for chat in all_chats}
+    finally:
+        SESSION.close()
     return ANTIFLOOD_SQL_.CHAT_FLOOD

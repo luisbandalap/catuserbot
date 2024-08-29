@@ -7,10 +7,7 @@
 # Please see: https://github.com/TgCatUB/catuserbot/blob/master/LICENSE
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 
-from contextlib import contextmanager
-
 from sqlalchemy import Column, String
-from sqlalchemy.exc import SQLAlchemyError
 
 from . import BASE, SESSION
 
@@ -28,33 +25,18 @@ class Mute(BASE):
 Mute.__table__.create(checkfirst=True)
 
 
-@contextmanager
-def session_scope():
-    """Provide a transactional scope around a series of operations."""
-    session = SESSION()
-    try:
-        yield session
-        session.commit()
-    except SQLAlchemyError as e:
-        session.rollback()
-        raise e
-    finally:
-        session.close()
-
-
 def is_muted(sender, chat_id):
-    with session_scope() as session:
-        user = session.query(Mute).get((str(sender), str(chat_id)))
-        return bool(user)
+    user = SESSION.query(Mute).get((str(sender), str(chat_id)))
+    return bool(user)
 
 
 def mute(sender, chat_id):
-    with session_scope() as session:
-        adder = Mute(str(sender), str(chat_id))
-        session.add(adder)
+    adder = Mute(str(sender), str(chat_id))
+    SESSION.add(adder)
+    SESSION.commit()
 
 
 def unmute(sender, chat_id):
-    with session_scope() as session:
-        if rem := session.query(Mute).get((str(sender), str(chat_id))):
-            session.delete(rem)
+    if rem := SESSION.query(Mute).get((str(sender), str(chat_id))):
+        SESSION.delete(rem)
+        SESSION.commit()

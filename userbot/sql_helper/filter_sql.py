@@ -7,10 +7,7 @@
 # Please see: https://github.com/TgCatUB/catuserbot/blob/master/LICENSE
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 
-from contextlib import contextmanager
-
 from sqlalchemy import Column, Numeric, String, UnicodeText
-from sqlalchemy.exc import SQLAlchemyError
 
 from . import BASE, SESSION
 
@@ -35,52 +32,47 @@ class Filter(BASE):
 Filter.__table__.create(checkfirst=True)
 
 
-@contextmanager
-def session_scope():
-    """Provide a transactional scope around a series of operations."""
-    session = SESSION()
-    try:
-        yield session
-        session.commit()
-    except SQLAlchemyError as e:
-        session.rollback()
-        raise e
-    finally:
-        session.close()
-
-
 def get_filter(chat_id, keyword):
-    with session_scope() as session:
-        return session.query(Filter).get((str(chat_id), keyword))
+    try:
+        return SESSION.query(Filter).get((str(chat_id), keyword))
+    finally:
+        SESSION.close()
 
 
 def get_filters(chat_id):
-    with session_scope() as session:
-        return session.query(Filter).filter(Filter.chat_id == str(chat_id)).all()
+    try:
+        return SESSION.query(Filter).filter(Filter.chat_id == str(chat_id)).all()
+    finally:
+        SESSION.close()
 
 
 def add_filter(chat_id, keyword, reply, f_mesg_id):
-    with session_scope() as session:
-        to_check = session.query(Filter).get((str(chat_id), keyword))
-        if not to_check:
-            adder = Filter(str(chat_id), keyword, reply, f_mesg_id)
-            session.add(adder)
-            return True
-        session.delete(to_check)
+    to_check = get_filter(chat_id, keyword)
+    if not to_check:
         adder = Filter(str(chat_id), keyword, reply, f_mesg_id)
-        session.add(adder)
-        return False
+        SESSION.add(adder)
+        SESSION.commit()
+        return True
+    rem = SESSION.query(Filter).get((str(chat_id), keyword))
+    SESSION.delete(rem)
+    SESSION.commit()
+    adder = Filter(str(chat_id), keyword, reply, f_mesg_id)
+    SESSION.add(adder)
+    SESSION.commit()
+    return False
 
 
 def remove_filter(chat_id, keyword):
-    with session_scope() as session:
-        to_check = session.query(Filter).get((str(chat_id), keyword))
-        if not to_check:
-            return False
-        session.delete(to_check)
-        return True
+    to_check = get_filter(chat_id, keyword)
+    if not to_check:
+        return False
+    rem = SESSION.query(Filter).get((str(chat_id), keyword))
+    SESSION.delete(rem)
+    SESSION.commit()
+    return True
 
 
 def remove_all_filters(chat_id):
-    with session_scope() as session:
-        session.query(Filter).filter(Filter.chat_id == str(chat_id)).delete()
+    if saved_filter := SESSION.query(Filter).filter(Filter.chat_id == str(chat_id)):
+        saved_filter.delete()
+        SESSION.commit()
