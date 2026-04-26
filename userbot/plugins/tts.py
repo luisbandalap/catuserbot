@@ -1,3 +1,12 @@
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~# CatUserBot #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+# Copyright (C) 2020-2023 by TgCatUB@Github.
+
+# This file is part of: https://github.com/TgCatUB/catuserbot
+# and is released under the "GNU v3.0 License Agreement".
+
+# Please see: https://github.com/TgCatUB/catuserbot/blob/master/LICENSE
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+
 """ Google Text to Speech
 Available Commands:
 .tts LanguageCode as reply to a message
@@ -67,8 +76,9 @@ async def _(event):
             "100k",
             "-vbr",
             "on",
-            required_file_name + ".opus",
+            f"{required_file_name}.opus",
         ]
+
         try:
             t_response = subprocess.check_output(
                 command_to_execute, stderr=subprocess.STDOUT
@@ -78,7 +88,7 @@ async def _(event):
             # continue sending required_file_name
         else:
             os.remove(required_file_name)
-            required_file_name = required_file_name + ".opus"
+            required_file_name = f"{required_file_name}.opus"
         end = datetime.now()
         ms = (end - start).seconds
         await event.client.send_file(
@@ -90,8 +100,7 @@ async def _(event):
         )
         os.remove(required_file_name)
         await edit_delete(
-            catevent,
-            "`Processed text {} into voice in {} seconds!`".format(text[0:20], ms),
+            catevent, f"`Processed text {text[:20]} into voice in {ms} seconds!`"
         )
     except Exception as e:
         await edit_or_reply(catevent, f"**Error:**\n`{e}`")
