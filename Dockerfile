@@ -2,7 +2,7 @@ ARG BUILD_UPSTREAM_REPO
 ARG BUILD_UPSTREAM_REPO_BRANCH
 
 # Use a Debian Bookworm base image with necessary dependencies pre-installed
-FROM docker.io/luisbandalap/debian-bookworm:latest
+FROM docker.io/luisbandalap/debian-trixie:latest
 
 # Create user tgbot with sudo privileges
 RUN addgroup --gid 1001 tgbot && \
