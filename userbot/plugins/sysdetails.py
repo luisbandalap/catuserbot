@@ -6,6 +6,8 @@ import platform
 import re
 import sys
 from datetime import datetime
+from os.path import isfile
+from shutil import which
 
 import psutil
 from telethon import __version__
@@ -15,7 +17,11 @@ from userbot import catub
 from ..core.managers import edit_or_reply
 from ..helpers.utils import _catutils
 
+NEOFETCH_PATH = "neofetch/neofetch"
 plugin_category = "tools"
+
+# Same fields neofetch prints by default
+FASTFETCH_STRUCTURE = "Title:Separator:OS:Host:Kernel:Uptime:Packages:Shell:Display:DE:WM:WMTheme:Theme:Icons:Terminal:TerminalFont:CPU:GPU:Memory"
 
 
 def get_size(inputbytes, suffix="B"):
@@ -97,35 +103,65 @@ async def cpu(event):
     await edit_or_reply(event, f"**[Cat's](tg://need_update_for_some_feature/) CPU Model:**\n{o}")
 
 
+async def _show_info(catevent, cmd):
+    a, b, c, d = await _catutils.runcmd(cmd)
+    result = re.sub(r"\x1b\[[0-9;\?]*[a-zA-Z]", "", str(a) + str(b))
+    await edit_or_reply(catevent, f"**System Info:**\n```{result}```")
+
+
+async def _run_neofetch(event, no_logo=False):
+    catevent = await edit_or_reply(event, "`Fetching system information.`")
+    if not isfile(NEOFETCH_PATH):
+        await _catutils.runcmd("git clone https://github.com/dylanaraps/neofetch.git")
+    if not isfile(NEOFETCH_PATH):
+        return await edit_or_reply(catevent, "`neofetch could not be downloaded.`")
+    cmd = f"{NEOFETCH_PATH} --color_blocks off --bold off --cpu_temp C --cpu_speed on --cpu_cores physical --kernel_shorthand off"
+    if no_logo:
+        cmd += " --off"
+    await _show_info(catevent, cmd)
+
+
 @catub.cat_cmd(
-    pattern=r"(neofetch|sysd)$",
+    pattern=r"sysd$",
     command=("sysd", plugin_category),
     info={
-        "header": "Shows system information using neofetch",
+        "header": "Shows system information without logo using fastfetch, or neofetch if it is not installed",
         "usage": "{tr}sysd",
     },
 )
 async def sysdetails(sysd):
-    "Shows system information using neofetch"
-    catevent = await edit_or_reply(sysd, "`Fetching system information.`")
-    cmd = "git clone https://github.com/dylanaraps/neofetch.git"
-    await _catutils.runcmd(cmd)
-    neo = "neofetch/neofetch --color_blocks off --bold off --cpu_temp C --cpu_speed on --cpu_cores physical --kernel_shorthand off"
-    if sysd.pattern_match.group(1) == "sysd":
-        neo = neo + " --off"
-    a, b, c, d = await _catutils.runcmd(neo)
-    ressult = str(a) + str(b)
-    result = re.sub(r"\x1b\[[0-9;\?]*[a-zA-Z]", "", ressult)
-    await edit_or_reply(catevent, f"**Neofetch Result:**\n```{result}```")
+    "Shows system information without logo using fastfetch, or neofetch if it is not installed"
+    if which("fastfetch"):
+        catevent = await edit_or_reply(sysd, "`Fetching system information.`")
+        await _show_info(catevent, f"fastfetch --pipe --logo none --structure {FASTFETCH_STRUCTURE}")
+    else:
+        await _run_neofetch(sysd, no_logo=True)
 
 
 @catub.cat_cmd(
-    pattern=r"neofetch",
+    pattern=r"neofetch$",
     command=("neofetch", plugin_category),
     info={
-        "header": "Shows system info using neoefetch with logo",
+        "header": "Shows system info using neofetch with logo",
         "usage": "{tr}neofetch",
     },
 )
-async def neofetch_help(neo):
-    "Shows System info using neofetch with logo"
+async def neofetch_cmd(event):
+    "Shows system info using neofetch with logo"
+    await _run_neofetch(event)
+
+
+@catub.cat_cmd(
+    pattern=r"fastfetch$",
+    command=("fastfetch", plugin_category),
+    info={
+        "header": "Shows system info using fastfetch with logo",
+        "usage": "{tr}fastfetch",
+    },
+)
+async def fastfetch_cmd(event):
+    "Shows system info using fastfetch with logo"
+    catevent = await edit_or_reply(event, "`Fetching system information.`")
+    if not which("fastfetch"):
+        return await edit_or_reply(catevent, "`fastfetch is not installed on this system.`")
+    await _show_info(catevent, f"fastfetch --pipe --structure {FASTFETCH_STRUCTURE}")
