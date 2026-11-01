@@ -24,6 +24,7 @@ icrawler
 jikanpy
 justwatch
 lottie
+lxml_html_clean
 lyricsgenius
 markdown
 motor
@@ -55,17 +56,18 @@ speedtest-cli
 sqlalchemy-json
 sqlalchemy>=2.0.47,<2.1
 sqlalchemy-cockroachdb
-telegraph==2.1.0
+telegraph==2.2.0
+telethon==1.45.0
 tgcrypto
 ujson
 urlextract
 validators
 wand
 wget
+yt-dlp[default,curl-cffi]
+yt-dlp-ejs
 
 git+https://github.com/Jisan09/search-engine-parser
-git+https://github.com/Jisan09/Telethon@test
 git+https://github.com/goldsmith/Wikipedia
 git+https://github.com/sandy1709/py-googletrans
 git+https://github.com/alexmercerind/youtube-search-python
-git+https://github.com/yt-dlp/yt-dlp

@@ -97,11 +97,9 @@ async def build_article(
     if thumbnail and isinstance(thumbnail, str):
         thumbnail = get_thumb(url=thumbnail)
     # Return an article object with the provided properties
-    return builder.article(
-        title=title,
+    result = await builder.article(
+        title=title or "CatUserbot",
         description=description,
-        type="photo" if photo_document else "article",
-        file=media,
         thumb=thumbnail or photo_document,
         content=photo_document,
         text=text,
@@ -109,6 +107,10 @@ async def build_article(
         link_preview=link_preview,
         parse_mode=parse_mode,
     )
+    if photo_document:
+        # Telethon's article() hardcodes type="article"; photo results need type="photo"
+        result.type = "photo"
+    return result
 
 
 async def help_article(event):
@@ -162,7 +164,7 @@ async def deploy_article(event):
 
 async def pmpermit_article(event):
     buttons = [Button.inline(text="Show Options.", data="show_pmpermit_options")]
-    query = gvarstatus("PM_TEXT")
+    query = gvarstatus("PM_TEXT") or "__Hi, I haven't approved you yet to personal message me.\n\nChoose an option from below to specify the reason of your message and wait for me to check it.__ ⬇️"
     media = None
     if PM_PIC := gvarstatus("PM_PIC"):
         CAT = list(PM_PIC.split())
